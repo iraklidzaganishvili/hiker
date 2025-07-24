@@ -1,26 +1,39 @@
+<!-- index.html -->
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Hikes Map App</title>
-  <!-- Leaflet CSS -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-  <!-- Leaflet.draw CSS -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet-draw/dist/leaflet.draw.css" />
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"/>
+  <link rel="stylesheet" href="style.css"/>
 </head>
 <body>
   <div id="sidebar">
     <button id="download-json">Download JSON</button>
+
+    <div id="hike-form" class="hidden">
+      <h3>Hike Info</h3>
+      <label>Name:<br/><input id="hike-name" type="text"/></label><br/>
+      <label>Start Date:<br/><input id="hike-start-date" type="date"/></label><br/>
+      <label>End Date:<br/><input id="hike-end-date" type="date"/></label><br/>
+      <label>Distance (km):<br/><input id="hike-distance" type="number" step="0.01"/></label><br/>
+      <label>Difficulty:<br/><input id="hike-difficulty" type="text" placeholder="1-10"/></label><br/>
+      <label>Notes:<br/><textarea id="hike-notes" rows="3" placeholder="Extra comments…"></textarea></label><br/>
+      <button id="save-hike">Save</button>
+      <button id="cancel-hike">Cancel</button>
+      <button id="delete-hike" class="hidden">Delete</button>
+    </div>
+
     <ul id="hike-list"></ul>
   </div>
+
   <div id="map"></div>
 
-  <!-- Leaflet JS -->
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-  <!-- Leaflet.draw JS -->
-  <script src="https://unpkg.com/leaflet-draw/dist/leaflet-draw.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+  <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
   <script src="script.js"></script>
 </body>
 </html>

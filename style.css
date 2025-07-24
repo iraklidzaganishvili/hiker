@@ -1,21 +1,94 @@
-body { margin: 0; display: flex; height: 100vh; }
+/* style.css */
+body {
+    margin: 0;
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    ;
+}
+
+/* Draggable sidebar */
 #sidebar {
-  width: 300px;
-  padding: 10px;
-  background: #f7f7f7;
-  overflow-y: auto;
+    cursor: default;
+
+    position: static;
+    top: 0;
+    left: 0;
+    width: 300px;
+    height: 100%;
+    background: #f7f7f7;
+    padding: 10px;
+    box-sizing: border-box;
+    overflow-y: auto;
+    z-index: 1000;
 }
-#sidebar button {
-  display: block;
-  margin-bottom: 10px;
-  width: 100%;
-  padding: 8px;
+
+#sidebar.dragging {
+    cursor: grabbing;
 }
-#hike-list { list-style: none; padding: 0; }
+
+#map {
+    flex: 1;
+}
+
+/* Responsive: stack on mobile */
+@media (max-width: 768px) {
+    body {
+        flex-direction: column;
+    }
+
+    #sidebar {
+        position: relative;
+        width: 100%;
+        height: 50%;
+        cursor: default;
+    }
+
+    #map {
+        height: 50%;
+    }
+}
+
+.leaflet-top,
+.leaflet-bottom {
+    position: static !important;
+}
+
+.leaflet-control-attribution {
+    display: none;
+}
+
+#hike-notes,
+#hike-name,
+#hike-start-date,
+#hike-end-date,
+#hike-distance,
+#hike-difficulty {
+    width: 100%;
+}
+
+.hidden {
+    display: none;
+}
+
+#download-json {
+    width: 100%;
+    padding: 8px;
+    margin-bottom: 10px;
+}
+
+#hike-list {
+    list-style-type: none;
+    margin: 0;
+    padding: 0;
+    cursor: pointer;
+
+}
+
 #hike-list li {
-  cursor: pointer;
-  padding: 5px;
-  border-bottom: 1px solid #ddd;
+    border-radius: 3px;
+    &:hover {
+        background-color: rgba(99, 99, 99, 0.75);
+    }
 }
-#hike-list li:hover { background: #eee; }
-#map { flex: 1; }
