@@ -55,7 +55,7 @@ window.onload = () => {
   addCoordsBtn.style.marginBottom = '10px';
   sidebar.insertBefore(addCoordsBtn, loadBtn.nextSibling);
   addCoordsBtn.addEventListener('click', () => {
-    const input = prompt('Enter coordinates as JSON array of [lng,lat] pairs:');
+    const input = prompt('Enter coordinates eg. [[44.8271, 41.7151],[44.8285, 41.7160],[44.8300, 41.7200],[44.8320, 41.7220]]:');
     if (!input) return;
     let coords;
     try {
