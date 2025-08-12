@@ -7,7 +7,7 @@ body {
     color: #333;
   }
   
-  .hidden { display: none; }
+
   
   /* Sidebar */
   #sidebar {
@@ -100,3 +100,28 @@ body {
     #sidebar { width: 100%; height: auto; border-right: none; border-bottom: 1px solid #e0e0e0; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
     #map { height: calc(100vh - 200px); }
   }
+
+
+
+/* hide by default, style for mobile */
+#toggle-sidebar {
+  display: none;
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 1001;
+  padding: 8px 12px;
+  font-size: 1.25rem;
+  background: #ffffff;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+/* only show the toggle on small screens */
+@media (max-width: 768px) {
+  #toggle-sidebar {
+    display: block;
+  }
+}
+.hidden { display: none !important; }
