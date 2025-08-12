@@ -1,10 +1,10 @@
-// script.js — footpath-first snapping using ONLY OSRM /match (foot) + graceful fallback
+// script.js — foot map-matching via FOSSGIS + CORS-safe tiles (no project-osrm)
 
-// ── OSRM map-matching endpoint ───────────────────────────
-const OSRM_MATCH_BASE = 'https://router.project-osrm.org/match/v1/foot';
-const OSRM_MATCH_LIMIT = 99;        // keep chunks under ~100 points
-const DENSIFY_STEP_METERS = 8;      // tighter spacing → better trail hugging
-const RADIUS_TRIES_METERS = [18, 25, 35]; // prefer nearby paths; widen only if needed
+// ── OSRM map-matching endpoint (foot) ────────────────────
+const OSRM_MATCH_BASE = 'https://routing.openstreetmap.de/routed-foot/match/v1/foot';
+const OSRM_MATCH_LIMIT = 99;           // keep chunks < 100 points
+const DENSIFY_STEP_METERS = 5;         // tight sampling → hugs tiny/dotted paths
+const RADIUS_TRIES_METERS = [10, 14, 20, 28, 36]; // tight→wider until it matches
 
 // ── Utilities ────────────────────────────────────────────
 function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
@@ -39,24 +39,30 @@ function concatCoords(base, next) {
   return base.concat(next);
 }
 
-// ── OSRM map-matching (foot) with chunking & radius ramp ─
+// ── OSRM /match (foot) with chunking + radius ramp + timestamps ─
 async function osrmMatchFoot(allCoords) {
   const coords = densify(allCoords, DENSIFY_STEP_METERS);
   let merged = [];
 
+  // one timestamp sequence for the whole line (monotonic)
+  const t0 = Math.floor(Date.now() / 1000);
+
   for (let start = 0; start < coords.length; start += (OSRM_MATCH_LIMIT - 1)) {
-    const end = Math.min(coords.length, start + OSRM_MATCH_LIMIT);
+    const end   = Math.min(coords.length, start + OSRM_MATCH_LIMIT);
     const chunk = coords.slice(start, end);
 
     let chunkGeom = null;
 
-    // try tighter → wider radiuses; tighter favors nearby paths over roads
+    // synthetic monotonically increasing timestamps (1s apart)
+    const timestamps = chunk.map((_, i) => t0 + start + i).join(';');
+
     for (const R of RADIUS_TRIES_METERS) {
       const coordStr = chunk.map(c => `${c[0]},${c[1]}`).join(';');
       const radiuses = new Array(chunk.length).fill(R).join(';');
 
       const url = `${OSRM_MATCH_BASE}/${coordStr}` +
-                  `?overview=full&geometries=geojson&tidy=true&gaps=ignore&radiuses=${radiuses}`;
+        `?overview=full&geometries=geojson&tidy=true&gaps=ignore` +
+        `&radiuses=${radiuses}&timestamps=${timestamps}`;
 
       try {
         const res = await fetch(url, {
@@ -75,24 +81,22 @@ async function osrmMatchFoot(allCoords) {
           }
           if (geom.length) {
             chunkGeom = geom;
-            break; // got it with this radius
+            break; // matched with this radius
           }
         }
       } catch (_) {
-        // try with next (wider) radius
+        // try next (wider) radius
       }
     }
 
     if (!chunkGeom) {
-      // if any chunk fails to match, bail out so caller can fallback to the sketch
+      // matching failed for this chunk → tell caller to keep the sketch
       return null;
     }
 
     merged = concatCoords(merged, chunkGeom);
-    // be kind to public server
-    await sleep(50);
+    await sleep(50); // be kind to public server
   }
-
   return merged.length ? merged : null;
 }
 
@@ -114,14 +118,12 @@ window.onload = () => {
   endInput   = document.getElementById('hike-end-date');
   distInput  = document.getElementById('hike-distance');
 
-  // ── Dynamically add difficulty numeric field ────────────
+  // ── Dynamic fields ─────────────────────────────────────
   difficultyInput = createFormField('Difficulty (1-10):', 'hike-difficulty', 'number');
   difficultyInput.min = 1; difficultyInput.max = 10; difficultyInput.step = 1;
-
-  // ── Dynamically add the 3 optional link fields ─────────
-  mappyInput  = createFormField('Mappy Link (optional):', 'hike-mappy-link', 'url');
+  mappyInput  = createFormField('Mappy Link (optional):',  'hike-mappy-link',  'url');
   photosInput = createFormField('Photos Link (optional):', 'hike-photos-link', 'url');
-  mediaInput  = createFormField('Media Link (optional):', 'hike-media-link', 'url');
+  mediaInput  = createFormField('Media Link (optional):',  'hike-media-link',  'url');
 
   form.classList.add('hidden');
 
@@ -219,23 +221,39 @@ window.onload = () => {
   map = L.map('map', { preferCanvas: true, zoomControl: false }).setView([41.7151, 44.8271], 13);
   L.control.zoom({ position: 'topright' }).addTo(map);
 
+  // Tiles: cap native zooms + transparent error tiles (no CORS/404 spam)
+  const transparent1x1 = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==';
+
   const topo = L.tileLayer('https://tile.opentopomap.org/{z}/{x}/{y}.png', {
-    maxZoom: 18, detectRetina: true,
-    attribution: '© OSM, SRTM | OpenTopoMap',
-    crossOrigin: true
+    maxZoom: 17,          // hard cap so Leaflet never requests z18 from OTM
+    maxNativeZoom: 17,
+    detectRetina: false,
+    errorTileUrl: transparent1x1,
+    attribution: '© OSM, SRTM | OpenTopoMap'
   }).addTo(map);
 
   const osmStd = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19, attribution: '© OpenStreetMap contributors',
-    crossOrigin: true
+    maxZoom: 19,
+    maxNativeZoom: 19,
+    detectRetina: false,
+    errorTileUrl: transparent1x1,
+    attribution: '© OpenStreetMap contributors'
   });
 
   const trails = L.tileLayer('https://tile.waymarkedtrails.org/hiking/{z}/{x}/{y}.png', {
-    maxZoom: 18, attribution: '© Waymarked Trails',
-    crossOrigin: true
+    maxZoom: 17,
+    maxNativeZoom: 17,
+    detectRetina: false,
+    errorTileUrl: transparent1x1,
+    opacity: 0.95,
+    attribution: '© Waymarked Trails'
   });
 
-  L.control.layers({ 'Topo': topo, 'OSM Standard': osmStd }, { 'Trails': trails }, { position: 'bottomright' }).addTo(map);
+  L.control.layers(
+    { 'Topo': topo, 'OSM Standard': osmStd },
+    { 'Trails': trails },
+    { position: 'bottomright' }
+  ).addTo(map);
 
   // ── Drawing toolbar: only polyline ─────────────────────
   drawnItems = new L.FeatureGroup().addTo(map);
@@ -310,7 +328,7 @@ window.onload = () => {
     const raw = layer.toGeoJSON().geometry.coordinates; // [lng,lat]
     let matched = await osrmMatchFoot(raw);
 
-    // fallback: keep the user's sketch if matching fails
+    // fallback: keep the user's sketch (lightly densified) if matching fails
     const route = matched && matched.length ? matched : densify(raw, 2);
 
     drawnItems.removeLayer(layer);
@@ -326,7 +344,7 @@ window.onload = () => {
   });
 };
 
-// ── Create a new label+input in the form ─────────────────
+// ── Helpers ──────────────────────────────────────────────
 function createFormField(labelText, id, type) {
   const label = document.createElement('label');
   label.innerHTML = `${labelText}<br/>`;
@@ -342,7 +360,6 @@ function createFormField(labelText, id, type) {
   return input;
 }
 
-// ── Render the sidebar list, sorted by the chosen criterion ─
 function renderHikeList() {
   const list = document.getElementById('hike-list');
   list.innerHTML = '';
@@ -397,7 +414,6 @@ function renderHikeList() {
   });
 }
 
-// ── Delete the currently editing hike ────────────────────
 function deleteCurrentHike() {
   if (!pendingEditHike || !pendingLayer) return;
   drawnItems.removeLayer(pendingLayer);
@@ -408,7 +424,6 @@ function deleteCurrentHike() {
   renderHikeList();
 }
 
-// ── Handle uploading a JSON file of hikes ────────────────
 function handleUpload(e) {
   const file = e.target.files[0];
   if (!file) return;
@@ -421,15 +436,12 @@ function handleUpload(e) {
       document.getElementById('hike-list').innerHTML = '';
       data.forEach(addExistingHike);
       renderHikeList();
-    } catch (err) {
-      console.error('Invalid JSON', err);
-    }
+    } catch (err) { console.error('Invalid JSON', err); }
   };
   reader.readAsText(file);
   e.target.value = '';
 }
 
-// ── Add an existing hike (from initial load or upload) ───
 function addExistingHike(h) {
   const layer = L.geoJSON(h.route).addTo(drawnItems);
   const id = (h && 'id' in h && h.id != null) ? h.id : layer._leaflet_id;
@@ -457,7 +469,6 @@ function addExistingHike(h) {
   });
 }
 
-// ── Build the text for a list item ───────────────────────
 function buildListText(h) {
   let txt = h.name;
   if (h.startDate && h.endDate) txt += ` (${h.startDate} - ${h.endDate})`;
