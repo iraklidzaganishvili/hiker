@@ -43,8 +43,6 @@ function concatCoords(base, next) {
 async function osrmMatchFoot(allCoords) {
   const coords = densify(allCoords, DENSIFY_STEP_METERS);
   let merged = [];
-
-  // one timestamp sequence for the whole line (monotonic)
   const t0 = Math.floor(Date.now() / 1000);
 
   for (let start = 0; start < coords.length; start += (OSRM_MATCH_LIMIT - 1)) {
@@ -52,8 +50,6 @@ async function osrmMatchFoot(allCoords) {
     const chunk = coords.slice(start, end);
 
     let chunkGeom = null;
-
-    // synthetic monotonically increasing timestamps (1s apart)
     const timestamps = chunk.map((_, i) => t0 + start + i).join(';');
 
     for (const R of RADIUS_TRIES_METERS) {
@@ -89,10 +85,7 @@ async function osrmMatchFoot(allCoords) {
       }
     }
 
-    if (!chunkGeom) {
-      // matching failed for this chunk → tell caller to keep the sketch
-      return null;
-    }
+    if (!chunkGeom) return null; // matching failed for this chunk → keep sketch
 
     merged = concatCoords(merged, chunkGeom);
     await sleep(50); // be kind to public server
@@ -152,38 +145,24 @@ window.onload = () => {
   sidebar.insertBefore(loadBtn, document.getElementById('download-json'));
   loadBtn.addEventListener('click', () => fileInput.click());
 
-  // ── "Add Hikes" (manual coords) ────────────────────────
-  const addCoordsBtn = document.createElement('button');
-  addCoordsBtn.id = 'add-hikes';
-  addCoordsBtn.textContent = 'Add Hikes';
-  addCoordsBtn.style.width = '100%';
-  addCoordsBtn.style.padding = '8px';
-  addCoordsBtn.style.marginBottom = '10px';
-  sidebar.insertBefore(addCoordsBtn, loadBtn.nextSibling);
-  addCoordsBtn.addEventListener('click', () => {
-    const input = prompt('Enter coordinates eg. [[44.8271,41.7151],[44.8285,41.7160],[44.8300,41.7200],[44.8320,41.7220]]:');
-    if (!input) return;
-    let coords;
-    try {
-      coords = JSON.parse(input);
-      if (!Array.isArray(coords) || coords.length < 2) throw new Error();
-    } catch {
-      alert('Invalid format. Please enter a JSON array like [[lng,lat],[lng,lat],...]');
-      return;
-    }
-    const route = coords;
-    const latlngs = route.map(c => [c[1], c[0]]);
-    const layer = L.polyline(latlngs).addTo(drawnItems);
-    pendingLayer = layer;
-    pendingLayer.routeCoords = route;
+  // ───────────────────────────────────────────────────────
+  // REPLACED: "Add Hikes" (manual coords) → Import GPX
+  // ───────────────────────────────────────────────────────
+  const gpxInput = document.createElement('input');
+  gpxInput.type = 'file';
+  gpxInput.accept = '.gpx,application/gpx+xml';
+  gpxInput.style.display = 'none';
+  gpxInput.addEventListener('change', handleGpxFile);
+  sidebar.appendChild(gpxInput);
 
-    const dist = turf.length(turf.lineString(route), { units: 'kilometers' });
-    distInput.value = dist.toFixed(2);
-    nameInput.value = startInput.value = endInput.value = '';
-    difficultyInput.value = mappyInput.value = photosInput.value = mediaInput.value = '';
-    form.classList.remove('hidden');
-    deleteBtn.classList.add('hidden');
-  });
+  const importGpxBtn = document.createElement('button');
+  importGpxBtn.id = 'import-gpx';
+  importGpxBtn.textContent = 'Import GPX';
+  importGpxBtn.style.width = '100%';
+  importGpxBtn.style.padding = '8px';
+  importGpxBtn.style.marginBottom = '10px';
+  sidebar.insertBefore(importGpxBtn, loadBtn.nextSibling);
+  importGpxBtn.addEventListener('click', () => gpxInput.click());
 
   // ── Sorting dropdown ───────────────────────────────────
   sortSelect = document.createElement('select');
@@ -225,7 +204,7 @@ window.onload = () => {
   const transparent1x1 = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==';
 
   const topo = L.tileLayer('https://tile.opentopomap.org/{z}/{x}/{y}.png', {
-    maxZoom: 17,          // hard cap so Leaflet never requests z18 from OTM
+    maxZoom: 17,
     maxNativeZoom: 17,
     detectRetina: false,
     errorTileUrl: transparent1x1,
@@ -442,6 +421,68 @@ function handleUpload(e) {
   e.target.value = '';
 }
 
+// ── GPX handling ─────────────────────────────────────────
+// Parse a GPX string and return an array of [lng,lat] points.
+// Supports <trk>/<trkseg>/<trkpt> and <rte>/<rtept>. Merges all segments in order.
+function parseGPXToLngLat(gpxText) {
+  const parser = new DOMParser();
+  const xml = parser.parseFromString(gpxText, 'application/xml');
+  if (xml.querySelector('parsererror')) throw new Error('Invalid GPX');
+
+  // Prefer track points (trkpt). If none, fall back to route points (rtept).
+  const trkpts = Array.from(xml.getElementsByTagName('trkpt'));
+  if (trkpts.length) {
+    return trkpts.map(pt => [parseFloat(pt.getAttribute('lon')), parseFloat(pt.getAttribute('lat'))])
+                 .filter(([lon, lat]) => Number.isFinite(lon) && Number.isFinite(lat));
+  }
+  const rtepts = Array.from(xml.getElementsByTagName('rtept'));
+  if (rtepts.length) {
+    return rtepts.map(pt => [parseFloat(pt.getAttribute('lon')), parseFloat(pt.getAttribute('lat'))])
+                 .filter(([lon, lat]) => Number.isFinite(lon) && Number.isFinite(lat));
+  }
+  return [];
+}
+
+function handleGpxFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = evt => {
+    try {
+      const coords = parseGPXToLngLat(evt.target.result);
+      if (!coords.length) {
+        alert('No track/route points found in GPX.');
+        e.target.value = '';
+        return;
+      }
+      // Add the GPX line as-is (no snapping), same flow as manual add:
+      const latlngs = coords.map(c => [c[1], c[0]]);
+      const layer = L.polyline(latlngs).addTo(drawnItems);
+      pendingLayer = layer;
+      pendingLayer.routeCoords = coords;
+
+      const dist = turf.length(turf.lineString(coords), { units: 'kilometers' });
+      distInput.value = dist.toFixed(2);
+      nameInput.value = '';
+      startInput.value = '';
+      endInput.value = '';
+      difficultyInput.value = '';
+      mappyInput.value = '';
+      photosInput.value = '';
+      mediaInput.value = '';
+      form.classList.remove('hidden');
+      if (deleteBtn) deleteBtn.classList.add('hidden');
+    } catch (err) {
+      console.error(err);
+      alert('Failed to read GPX file.');
+    } finally {
+      e.target.value = ''; // reset for next import
+    }
+  };
+  reader.readAsText(file);
+}
+
+// ── Add an existing hike (from initial load or upload) ───
 function addExistingHike(h) {
   const layer = L.geoJSON(h.route).addTo(drawnItems);
   const id = (h && 'id' in h && h.id != null) ? h.id : layer._leaflet_id;
