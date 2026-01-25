@@ -1,35 +1,145 @@
-<!-- index.html -->
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Hikes Map App</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Hiker - Trail Tracker</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
   <link rel="stylesheet" href="style.css"/>
 </head>
 <body>
-  <button id="toggle-sidebar" class="mobile-toggle">☰</button>
-  <div id="sidebar">
-    <button id="download-json">Download JSON</button>
+  <button id="toggle-sidebar" class="mobile-toggle" aria-label="Toggle menu">
+    <i class="fas fa-bars"></i>
+  </button>
 
-    <div id="hike-form" class="hidden">
-      <h3>Hike Info</h3>
-      <label>Name:<br/><input id="hike-name" type="text"/></label><br/>
-      <label>Start Date:<br/><input id="hike-start-date" type="date"/></label><br/>
-      <label>End Date:<br/><input id="hike-end-date" type="date"/></label><br/>
-      <label>Distance (km):<br/><input id="hike-distance" type="number" step="0.01"/></label><br/>
-      <label>Notes:<br/><textarea id="hike-notes" rows="3" placeholder="Extra comments…"></textarea></label><br/>
-      <button id="save-hike">Save</button>
-      <button id="cancel-hike">Cancel</button>
-      <button id="delete-hike" class="hidden">Delete</button>
+  <div id="sidebar">
+    <header class="app-header">
+      <i class="fas fa-mountain"></i>
+      <h1>Hiker</h1>
+    </header>
+
+    <div id="stats-summary" class="stats-summary">
+      <div class="stat-item">
+        <span class="stat-value" id="total-hikes">0</span>
+        <span class="stat-label">Hikes</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-value" id="total-distance">0</span>
+        <span class="stat-label">km Total</span>
+      </div>
     </div>
 
-    <ul id="hike-list"></ul>
+    <div class="button-group">
+      <button id="load-json" class="btn btn-secondary">
+        <i class="fas fa-folder-open"></i> Load JSON
+      </button>
+      <button id="import-gpx" class="btn btn-secondary">
+        <i class="fas fa-file-import"></i> Import GPX
+      </button>
+      <button id="download-json" class="btn btn-primary">
+        <i class="fas fa-download"></i> Download JSON
+      </button>
+    </div>
+
+    <div class="sort-container">
+      <label for="sort-select"><i class="fas fa-sort"></i> Sort by</label>
+      <select id="sort-select">
+        <option value="dateDesc">Date (Newest First)</option>
+        <option value="dateAsc">Date (Oldest First)</option>
+        <option value="distanceDesc">Distance (Longest)</option>
+        <option value="distanceAsc">Distance (Shortest)</option>
+        <option value="difficultyDesc">Difficulty (Hardest)</option>
+        <option value="difficultyAsc">Difficulty (Easiest)</option>
+        <option value="nameAsc">Name (A-Z)</option>
+        <option value="nameDesc">Name (Z-A)</option>
+      </select>
+    </div>
+
+    <div id="hike-form" class="hike-form hidden">
+      <h3><i class="fas fa-hiking"></i> Hike Details</h3>
+
+      <div class="form-group">
+        <label for="hike-name"><i class="fas fa-tag"></i> Name</label>
+        <input id="hike-name" type="text" placeholder="Enter hike name..."/>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="hike-start-date"><i class="fas fa-calendar"></i> Start</label>
+          <input id="hike-start-date" type="date"/>
+        </div>
+        <div class="form-group">
+          <label for="hike-end-date"><i class="fas fa-calendar-check"></i> End</label>
+          <input id="hike-end-date" type="date"/>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="hike-distance"><i class="fas fa-ruler"></i> Distance (km)</label>
+          <input id="hike-distance" type="number" step="0.01" readonly/>
+        </div>
+        <div class="form-group">
+          <label for="hike-difficulty"><i class="fas fa-signal"></i> Difficulty</label>
+          <input id="hike-difficulty" type="number" min="1" max="10" step="1" placeholder="1-10"/>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="hike-notes"><i class="fas fa-sticky-note"></i> Notes</label>
+        <textarea id="hike-notes" rows="2" placeholder="Add notes about this hike..."></textarea>
+      </div>
+
+      <details class="links-section">
+        <summary><i class="fas fa-link"></i> External Links (optional)</summary>
+        <div class="form-group">
+          <label for="hike-mappy-link">Mappy Link</label>
+          <input id="hike-mappy-link" type="url" placeholder="https://..."/>
+        </div>
+        <div class="form-group">
+          <label for="hike-photos-link">Photos Link</label>
+          <input id="hike-photos-link" type="url" placeholder="https://..."/>
+        </div>
+        <div class="form-group">
+          <label for="hike-media-link">Media Link</label>
+          <input id="hike-media-link" type="url" placeholder="https://..."/>
+        </div>
+      </details>
+
+      <div class="form-actions">
+        <button id="save-hike" class="btn btn-success">
+          <i class="fas fa-check"></i> Save
+        </button>
+        <button id="cancel-hike" class="btn btn-secondary">
+          <i class="fas fa-times"></i> Cancel
+        </button>
+        <button id="delete-hike" class="btn btn-danger hidden">
+          <i class="fas fa-trash"></i> Delete
+        </button>
+      </div>
+    </div>
+
+    <div id="hike-list-container">
+      <ul id="hike-list"></ul>
+      <div id="empty-state" class="empty-state">
+        <i class="fas fa-compass"></i>
+        <p>No hikes yet!</p>
+        <p class="hint">Draw a route on the map or import a GPX file to get started.</p>
+      </div>
+    </div>
   </div>
 
   <div id="map"></div>
+
+  <div id="loading-overlay" class="loading-overlay hidden">
+    <div class="spinner"></div>
+    <p>Snapping route to trails...</p>
+  </div>
+
+  <input type="file" id="json-file-input" accept=".json" style="display:none"/>
+  <input type="file" id="gpx-file-input" accept=".gpx,application/gpx+xml" style="display:none"/>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
