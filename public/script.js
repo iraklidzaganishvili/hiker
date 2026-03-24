@@ -154,7 +154,7 @@ let pendingLayer = null, pendingEditHike = null;
 
 // DOM Elements
 let form, nameInput, startInput, endInput, distInput;
-let difficultyInput, notesInput, mappyInput, photosInput, mediaInput;
+let difficultyInput, hikersInput, notesInput, mappyInput, photosInput, mediaInput;
 let deleteBtn, sortSelect, emptyState;
 
 window.onload = async () => {
@@ -213,6 +213,7 @@ window.onload = async () => {
   endInput = document.getElementById('hike-end-date');
   distInput = document.getElementById('hike-distance');
   difficultyInput = document.getElementById('hike-difficulty');
+  hikersInput = document.getElementById('hike-hikers');
   notesInput = document.getElementById('hike-notes');
   mappyInput = document.getElementById('hike-mappy-link');
   photosInput = document.getElementById('hike-photos-link');
@@ -221,13 +222,18 @@ window.onload = async () => {
   sortSelect = document.getElementById('sort-select');
   emptyState = document.getElementById('empty-state');
 
-  // ── Sidebar toggle (mobile) ────────────────────────────
-  const sidebar = document.getElementById('sidebar');
-  const toggleBtn = document.getElementById('toggle-sidebar');
-  toggleBtn.addEventListener('click', () => {
-    sidebar.classList.toggle('hidden');
-    setTimeout(() => map && map.invalidateSize(), 300);
+  // ── Tab switching ────────────────────────────────────
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    });
   });
+
+  // ── Mobile bottom sheet ──────────────────────────────
+  initBottomSheet();
 
   // ── File inputs ────────────────────────────────────────
   const jsonFileInput = document.getElementById('json-file-input');
@@ -356,6 +362,9 @@ window.onload = async () => {
     const end = endInput.value || null;
     const distance = parseFloat(distInput.value) || 0;
     const difficulty = parseInt(difficultyInput.value) || null;
+    const hikers = hikersInput.value.trim()
+      ? hikersInput.value.split(',').map(s => s.trim()).filter(Boolean)
+      : [];
     const notes = notesInput.value.trim() || null;
     const mappy = mappyInput.value.trim() || null;
     const photos = photosInput.value.trim() || null;
@@ -369,6 +378,7 @@ window.onload = async () => {
         endDate: end,
         distance,
         difficulty,
+        hikers,
         notes,
         mappyLink: mappy,
         photosLink: photos,
@@ -387,6 +397,7 @@ window.onload = async () => {
         name,
         distance,
         difficulty,
+        hikers,
         notes,
         route: { type: 'LineString', coordinates: pendingLayer.routeCoords },
         startDate: start,
@@ -443,6 +454,7 @@ window.onload = async () => {
     startInput.value = '';
     endInput.value = '';
     difficultyInput.value = '';
+    hikersInput.value = '';
     notesInput.value = '';
     mappyInput.value = '';
     photosInput.value = '';
@@ -510,6 +522,7 @@ function selectHike(hike) {
     endInput.value = hike.endDate || '';
     distInput.value = hike.distance.toFixed(2);
     difficultyInput.value = hike.difficulty || '';
+    hikersInput.value = (hike.hikers || []).join(', ');
     notesInput.value = hike.notes || '';
     mappyInput.value = hike.mappyLink || '';
     photosInput.value = hike.photosLink || '';
@@ -539,6 +552,55 @@ function updateStats() {
   } else {
     emptyState.classList.add('hidden');
   }
+
+  renderLeaderboard();
+}
+
+// ── Leaderboard ─────────────────────────────────────────
+function renderLeaderboard() {
+  const list = document.getElementById('leaderboard-list');
+  const empty = document.getElementById('leaderboard-empty');
+  if (!list) return;
+
+  // Aggregate by hiker name
+  const stats = {};
+  hikes.forEach(h => {
+    const hikerList = h.hikers || [];
+    hikerList.forEach(name => {
+      if (!stats[name]) stats[name] = { hikes: 0, points: 0, distance: 0 };
+      stats[name].hikes++;
+      stats[name].distance += h.distance || 0;
+      stats[name].points += (h.distance || 0) * (h.difficulty || 0);
+    });
+  });
+
+  const sorted = Object.entries(stats)
+    .map(([name, s]) => ({ name, ...s }))
+    .sort((a, b) => b.points - a.points);
+
+  list.innerHTML = '';
+
+  if (sorted.length === 0) {
+    if (empty) empty.classList.remove('hidden');
+    return;
+  }
+  if (empty) empty.classList.add('hidden');
+
+  sorted.forEach((hiker, i) => {
+    const li = document.createElement('li');
+    li.innerHTML = `
+      <div class="lb-rank">${i + 1}</div>
+      <div class="lb-info">
+        <div class="lb-name">${escapeHtml(hiker.name)}</div>
+        <div class="lb-stats">
+          <span><i class="fas fa-hiking"></i>${hiker.hikes}</span>
+          <span><i class="fas fa-ruler"></i>${hiker.distance.toFixed(1)} km</span>
+        </div>
+      </div>
+      <div class="lb-points">${Math.round(hiker.points)} pts</div>
+    `;
+    list.appendChild(li);
+  });
 }
 
 // ── Render hike list ─────────────────────────────────────
@@ -632,6 +694,7 @@ function buildHikeCardHTML(hike) {
       <span><i class="fas fa-ruler"></i> ${hike.distance.toFixed(2)} km</span>
       ${dateStr ? `<span><i class="fas fa-calendar"></i> ${dateStr}</span>` : ''}
       ${difficultyBadge}
+      ${hike.hikers && hike.hikers.length ? `<span><i class="fas fa-users"></i> ${hike.hikers.map(escapeHtml).join(', ')}</span>` : ''}
     </div>
   `;
 }
@@ -806,6 +869,7 @@ function addExistingHike(h) {
     name: h.name || 'Unnamed Hike',
     distance,
     difficulty: h.difficulty ?? null,
+    hikers: h.hikers || [],
     notes: h.notes || null,
     route: h.route,
     startDate: h.startDate || null,
@@ -817,7 +881,7 @@ function addExistingHike(h) {
   });
 }
 
-// ── Sidebar resize drag ──────────────────────────────
+// ── Sidebar resize drag (desktop only) ───────────────────
 (function() {
   const handle = document.getElementById('sidebar-resize');
   const sidebar = document.getElementById('sidebar');
@@ -826,6 +890,8 @@ function addExistingHike(h) {
   let dragging = false;
 
   handle.addEventListener('mousedown', (e) => {
+    // Only activate on desktop
+    if (window.innerWidth <= 768) return;
     e.preventDefault();
     dragging = true;
     handle.classList.add('dragging');
@@ -848,3 +914,102 @@ function addExistingHike(h) {
     if (typeof map !== 'undefined') map.invalidateSize();
   });
 })();
+
+// ── Mobile bottom sheet ──────────────────────────────────
+function initBottomSheet() {
+  const sidebar = document.getElementById('sidebar');
+  const dragHandle = document.getElementById('drag-handle');
+  if (!sidebar || !dragHandle) return;
+
+  // States and their max-height thresholds (as fraction of vh)
+  const STATES = ['collapsed', 'half', 'full'];
+  let currentState = 'half';
+
+  function isMobile() {
+    return window.innerWidth <= 768;
+  }
+
+  function applyState(state) {
+    STATES.forEach(s => sidebar.classList.remove(s));
+    sidebar.classList.add(state);
+    currentState = state;
+    // After transition, invalidate map size
+    setTimeout(() => {
+      if (typeof map !== 'undefined' && map) map.invalidateSize();
+    }, 350);
+  }
+
+  // Set initial state on mobile
+  function checkMobile() {
+    if (isMobile()) {
+      if (!STATES.some(s => sidebar.classList.contains(s))) {
+        applyState('half');
+      }
+    } else {
+      // Remove all bottom sheet states on desktop
+      STATES.forEach(s => sidebar.classList.remove(s));
+      sidebar.style.width = '';
+    }
+  }
+
+  checkMobile();
+  window.addEventListener('resize', checkMobile);
+
+  // Touch drag handling
+  let startY = 0;
+  let startMaxHeight = 0;
+  let isDragging = false;
+
+  function getMaxHeightPx() {
+    return sidebar.getBoundingClientRect().height;
+  }
+
+  dragHandle.addEventListener('touchstart', (e) => {
+    if (!isMobile()) return;
+    isDragging = true;
+    startY = e.touches[0].clientY;
+    startMaxHeight = getMaxHeightPx();
+    sidebar.style.transition = 'none';
+  }, { passive: true });
+
+  dragHandle.addEventListener('touchmove', (e) => {
+    if (!isDragging || !isMobile()) return;
+    const currentY = e.touches[0].clientY;
+    const deltaY = startY - currentY; // positive = dragging up
+    const newHeight = Math.max(100, Math.min(window.innerHeight * 0.9, startMaxHeight + deltaY));
+    sidebar.style.maxHeight = newHeight + 'px';
+  }, { passive: true });
+
+  dragHandle.addEventListener('touchend', () => {
+    if (!isDragging || !isMobile()) return;
+    isDragging = false;
+    sidebar.style.transition = '';
+
+    // Snap to nearest state based on current height
+    const height = sidebar.getBoundingClientRect().height;
+    const vh = window.innerHeight;
+    const ratio = height / vh;
+
+    // Thresholds: collapsed < 0.25, half 0.25-0.65, full > 0.65
+    let newState;
+    if (ratio < 0.25) {
+      newState = 'collapsed';
+    } else if (ratio < 0.65) {
+      newState = 'half';
+    } else {
+      newState = 'full';
+    }
+
+    // Remove inline max-height so CSS class takes over
+    sidebar.style.maxHeight = '';
+    applyState(newState);
+  }, { passive: true });
+
+  // Also allow clicking the drag handle to cycle states
+  dragHandle.addEventListener('click', () => {
+    if (!isMobile()) return;
+    const idx = STATES.indexOf(currentState);
+    const nextIdx = (idx + 1) % STATES.length;
+    applyState(STATES[nextIdx]);
+  });
+}

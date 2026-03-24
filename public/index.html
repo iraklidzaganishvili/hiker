@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="style.css"/>
 </head>
 <body>
+  <!-- Auth modal (hidden by default) -->
   <div id="auth-modal" class="auth-modal hidden">
     <div class="auth-modal-content">
       <h2><i class="fas fa-lock"></i> Hiker</h2>
@@ -27,122 +28,156 @@
     </div>
   </div>
 
-  <button id="toggle-sidebar" class="mobile-toggle" aria-label="Toggle menu">
-    <i class="fas fa-bars"></i>
-  </button>
-
+  <!-- Main layout -->
   <div id="sidebar">
-    <header class="app-header">
-      <i class="fas fa-mountain"></i>
-      <h1>Hiker</h1>
-      <div class="header-stats">
-        <span><strong id="total-hikes">0</strong> hikes</span>
-        <span><strong id="total-distance">0</strong> km</span>
-      </div>
-    </header>
+    <!-- Drag zone: handle + header (both draggable on mobile) -->
+    <div class="drag-zone" id="drag-handle">
+      <div class="drag-handle-pill"></div>
+      <header class="app-header">
+        <i class="fas fa-mountain"></i>
+        <h1>Hiker</h1>
+        <div class="header-stats">
+          <span><strong id="total-hikes">0</strong> hikes</span>
+          <span><strong id="total-distance">0</strong> km</span>
+        </div>
+      </header>
+    </div>
 
-    <div class="button-group">
+    <!-- Tab navigation -->
+    <nav class="tab-nav">
+      <button class="tab-btn active" data-tab="hikes">
+        <i class="fas fa-route"></i> Hikes
+      </button>
+      <button class="tab-btn" data-tab="leaderboard">
+        <i class="fas fa-trophy"></i> Leaderboard
+      </button>
+    </nav>
+
+    <!-- Tab content panels -->
+    <div class="tab-panels">
+      <!-- Hikes tab -->
+      <div class="tab-panel active" id="tab-hikes">
+        <div class="sort-container">
+          <label for="sort-select"><i class="fas fa-sort"></i> Sort by</label>
+          <select id="sort-select">
+            <option value="dateDesc">Date (Newest First)</option>
+            <option value="dateAsc">Date (Oldest First)</option>
+            <option value="distanceDesc">Distance (Longest)</option>
+            <option value="distanceAsc">Distance (Shortest)</option>
+            <option value="difficultyDesc">Difficulty (Hardest)</option>
+            <option value="difficultyAsc">Difficulty (Easiest)</option>
+            <option value="nameAsc">Name (A-Z)</option>
+            <option value="nameDesc">Name (Z-A)</option>
+          </select>
+        </div>
+
+        <div id="hike-form" class="hike-form hidden">
+          <h3><i class="fas fa-hiking"></i> Hike Details</h3>
+
+          <div class="form-group">
+            <label for="hike-name"><i class="fas fa-tag"></i> Name</label>
+            <input id="hike-name" type="text" placeholder="Enter hike name..."/>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="hike-start-date"><i class="fas fa-calendar"></i> Start</label>
+              <input id="hike-start-date" type="date"/>
+            </div>
+            <div class="form-group">
+              <label for="hike-end-date"><i class="fas fa-calendar-check"></i> End</label>
+              <input id="hike-end-date" type="date"/>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="hike-distance"><i class="fas fa-ruler"></i> Distance (km)</label>
+              <input id="hike-distance" type="number" step="0.01" readonly/>
+            </div>
+            <div class="form-group">
+              <label for="hike-difficulty"><i class="fas fa-signal"></i> Difficulty</label>
+              <input id="hike-difficulty" type="number" min="1" max="10" step="1" placeholder="1-10"/>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="hike-hikers"><i class="fas fa-users"></i> Hikers</label>
+            <input id="hike-hikers" type="text" placeholder="e.g. Irakli, Dato"/>
+          </div>
+
+          <div class="form-group">
+            <label for="hike-notes"><i class="fas fa-sticky-note"></i> Notes</label>
+            <textarea id="hike-notes" rows="2" placeholder="Add notes about this hike..."></textarea>
+          </div>
+
+          <details class="links-section">
+            <summary><i class="fas fa-link"></i> External Links (optional)</summary>
+            <div class="form-group">
+              <label for="hike-mappy-link">Mappy Link</label>
+              <input id="hike-mappy-link" type="url" placeholder="https://..."/>
+            </div>
+            <div class="form-group">
+              <label for="hike-photos-link">Photos Link</label>
+              <input id="hike-photos-link" type="url" placeholder="https://..."/>
+            </div>
+            <div class="form-group">
+              <label for="hike-media-link">Media Link</label>
+              <input id="hike-media-link" type="url" placeholder="https://..."/>
+            </div>
+          </details>
+
+          <div class="form-actions">
+            <button id="save-hike" class="btn btn-success">
+              <i class="fas fa-check"></i> Save
+            </button>
+            <button id="cancel-hike" class="btn btn-secondary">
+              <i class="fas fa-times"></i> Cancel
+            </button>
+            <button id="delete-hike" class="btn btn-danger hidden">
+              <i class="fas fa-trash"></i> Delete
+            </button>
+          </div>
+        </div>
+
+        <div id="hike-list-container">
+          <ul id="hike-list"></ul>
+          <div id="empty-state" class="empty-state">
+            <i class="fas fa-compass"></i>
+            <p>No hikes yet!</p>
+            <p class="hint">Draw a route on the map or import a GPX file to get started.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Leaderboard tab -->
+      <div class="tab-panel" id="tab-leaderboard">
+        <div class="leaderboard-container">
+          <ol id="leaderboard-list"></ol>
+          <div id="leaderboard-empty" class="empty-state">
+            <i class="fas fa-trophy"></i>
+            <p>No hikers yet</p>
+            <p class="hint">Add hikers to your hikes to see the leaderboard.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Actions bar pinned to bottom -->
+    <div class="actions-bar">
+      <button id="import-gpx" class="btn btn-primary">
+        <i class="fas fa-plus"></i> Add Hike
+      </button>
       <button id="load-json" class="btn btn-secondary">
-        <i class="fas fa-folder-open"></i> Load JSON
+        <i class="fas fa-folder-open"></i> Load
       </button>
-      <button id="import-gpx" class="btn btn-secondary">
-        <i class="fas fa-file-import"></i> Add Hike
+      <button id="download-json" class="btn btn-secondary">
+        <i class="fas fa-download"></i> Save
       </button>
-      <button id="download-json" class="btn btn-primary">
-        <i class="fas fa-download"></i> Download JSON
-      </button>
-    </div>
-
-    <div class="sort-container">
-      <label for="sort-select"><i class="fas fa-sort"></i> Sort by</label>
-      <select id="sort-select">
-        <option value="dateDesc">Date (Newest First)</option>
-        <option value="dateAsc">Date (Oldest First)</option>
-        <option value="distanceDesc">Distance (Longest)</option>
-        <option value="distanceAsc">Distance (Shortest)</option>
-        <option value="difficultyDesc">Difficulty (Hardest)</option>
-        <option value="difficultyAsc">Difficulty (Easiest)</option>
-        <option value="nameAsc">Name (A-Z)</option>
-        <option value="nameDesc">Name (Z-A)</option>
-      </select>
-    </div>
-
-    <div id="hike-form" class="hike-form hidden">
-      <h3><i class="fas fa-hiking"></i> Hike Details</h3>
-
-      <div class="form-group">
-        <label for="hike-name"><i class="fas fa-tag"></i> Name</label>
-        <input id="hike-name" type="text" placeholder="Enter hike name..."/>
-      </div>
-
-      <div class="form-row">
-        <div class="form-group">
-          <label for="hike-start-date"><i class="fas fa-calendar"></i> Start</label>
-          <input id="hike-start-date" type="date"/>
-        </div>
-        <div class="form-group">
-          <label for="hike-end-date"><i class="fas fa-calendar-check"></i> End</label>
-          <input id="hike-end-date" type="date"/>
-        </div>
-      </div>
-
-      <div class="form-row">
-        <div class="form-group">
-          <label for="hike-distance"><i class="fas fa-ruler"></i> Distance (km)</label>
-          <input id="hike-distance" type="number" step="0.01" readonly/>
-        </div>
-        <div class="form-group">
-          <label for="hike-difficulty"><i class="fas fa-signal"></i> Difficulty</label>
-          <input id="hike-difficulty" type="number" min="1" max="10" step="1" placeholder="1-10"/>
-        </div>
-      </div>
-
-      <div class="form-group">
-        <label for="hike-notes"><i class="fas fa-sticky-note"></i> Notes</label>
-        <textarea id="hike-notes" rows="2" placeholder="Add notes about this hike..."></textarea>
-      </div>
-
-      <details class="links-section">
-        <summary><i class="fas fa-link"></i> External Links (optional)</summary>
-        <div class="form-group">
-          <label for="hike-mappy-link">Mappy Link</label>
-          <input id="hike-mappy-link" type="url" placeholder="https://..."/>
-        </div>
-        <div class="form-group">
-          <label for="hike-photos-link">Photos Link</label>
-          <input id="hike-photos-link" type="url" placeholder="https://..."/>
-        </div>
-        <div class="form-group">
-          <label for="hike-media-link">Media Link</label>
-          <input id="hike-media-link" type="url" placeholder="https://..."/>
-        </div>
-      </details>
-
-      <div class="form-actions">
-        <button id="save-hike" class="btn btn-success">
-          <i class="fas fa-check"></i> Save
-        </button>
-        <button id="cancel-hike" class="btn btn-secondary">
-          <i class="fas fa-times"></i> Cancel
-        </button>
-        <button id="delete-hike" class="btn btn-danger hidden">
-          <i class="fas fa-trash"></i> Delete
-        </button>
-      </div>
-    </div>
-
-    <div id="hike-list-container">
-      <ul id="hike-list"></ul>
-      <div id="empty-state" class="empty-state">
-        <i class="fas fa-compass"></i>
-        <p>No hikes yet!</p>
-        <p class="hint">Draw a route on the map or import a GPX file to get started.</p>
-      </div>
     </div>
   </div>
 
   <div id="sidebar-resize"></div>
-
   <div id="map"></div>
 
   <div id="loading-overlay" class="loading-overlay hidden">
