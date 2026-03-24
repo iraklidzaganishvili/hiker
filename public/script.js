@@ -1,6 +1,11 @@
 // script.js — Hiker Trail Tracker
 // Foot map-matching via FOSSGIS + CORS-safe tiles
 
+// ── Service Worker for tile caching ──────────────────────
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js').catch(() => {});
+}
+
 // ── OSRM map-matching endpoint (foot) ────────────────────
 const OSRM_MATCH_BASE = 'https://routing.openstreetmap.de/routed-foot/match/v1/foot';
 const OSRM_MATCH_LIMIT = 99;
@@ -257,20 +262,34 @@ window.onload = async () => {
 
   const transparent1x1 = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==';
 
-  const topo = L.tileLayer('https://tile.opentopomap.org/{z}/{x}/{y}.png', {
-    maxZoom: 17,
-    maxNativeZoom: 17,
-    detectRetina: false,
-    errorTileUrl: transparent1x1,
-    attribution: '&copy; OSM, SRTM | OpenTopoMap'
-  }).addTo(map);
-
   const osmStd = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
     maxNativeZoom: 19,
     detectRetina: false,
     errorTileUrl: transparent1x1,
     attribution: '&copy; OpenStreetMap contributors'
+  }).addTo(map);
+
+  const topo = L.tileLayer('https://tile.opentopomap.org/{z}/{x}/{y}.png', {
+    maxZoom: 17,
+    maxNativeZoom: 17,
+    detectRetina: false,
+    errorTileUrl: transparent1x1,
+    attribution: '&copy; OSM, SRTM | OpenTopoMap'
+  });
+
+  const voyager = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+    maxZoom: 20,
+    detectRetina: true,
+    errorTileUrl: transparent1x1,
+    attribution: '&copy; OSM &copy; CARTO'
+  });
+
+  const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    maxZoom: 19,
+    detectRetina: false,
+    errorTileUrl: transparent1x1,
+    attribution: '&copy; Esri, Maxar, Earthstar'
   });
 
   const trails = L.tileLayer('https://tile.waymarkedtrails.org/hiking/{z}/{x}/{y}.png', {
@@ -283,7 +302,7 @@ window.onload = async () => {
   });
 
   L.control.layers(
-    { 'Topo': topo, 'OSM Standard': osmStd },
+    { 'OSM': osmStd, 'Voyager': voyager, 'Topo': topo, 'Satellite': satellite },
     { 'Trails': trails },
     { position: 'bottomright' }
   ).addTo(map);
@@ -319,6 +338,12 @@ window.onload = async () => {
     document.getElementById('import-gpx').classList.add('hidden');
   }
 
+  // ── Viewport-based route rendering & tooltip visibility ─
+  map.on('moveend', () => {
+    updateVisibleRoutes();
+    updateTooltipVisibility();
+  });
+
   // ── Load hikes from API ──────────────────────────────
   try {
     const data = await apiGetHikes();
@@ -329,6 +354,10 @@ window.onload = async () => {
     console.log('Failed to load hikes:', err.message);
     updateStats();
   }
+
+  // Initial viewport cull + tooltip check after hikes are loaded
+  updateVisibleRoutes();
+  updateTooltipVisibility();
 
   // ── Download JSON ──────────────────────────────────────
   document.getElementById('download-json').addEventListener('click', () => {
@@ -363,7 +392,7 @@ window.onload = async () => {
     const distance = parseFloat(distInput.value) || 0;
     const difficulty = parseInt(difficultyInput.value) || null;
     const hikers = hikersInput.value.trim()
-      ? hikersInput.value.split(',').map(s => s.trim()).filter(Boolean)
+      ? hikersInput.value.split(',').map(s => s.trim()).filter(Boolean).map(s => s.charAt(0).toUpperCase() + s.slice(1))
       : [];
     const notes = notesInput.value.trim() || null;
     const mappy = mappyInput.value.trim() || null;
@@ -444,6 +473,7 @@ window.onload = async () => {
       weight: 4,
       opacity: 0.8
     }).addTo(drawnItems);
+    pendingLayer._onMap = true;
     pendingLayer.routeCoords = route;
 
     const dist = turf.length(turf.lineString(route), { units: 'kilometers' });
@@ -502,8 +532,12 @@ function selectHike(hike) {
     listItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
-  // Fit map to hike
+  // Ensure layer is on the map before fitting bounds
   if (hike.layer) {
+    if (!hike.layer._onMap) {
+      drawnItems.addLayer(hike.layer);
+      hike.layer._onMap = true;
+    }
     map.fitBounds(hike.layer.getBounds(), { padding: [50, 50] });
   }
 
@@ -566,11 +600,16 @@ function renderLeaderboard() {
   const stats = {};
   hikes.forEach(h => {
     const hikerList = h.hikers || [];
-    hikerList.forEach(name => {
+    hikerList.forEach(raw => {
+      // Support multiplier: "Irakli-3" counts as 3 hikes
+      const match = raw.match(/^(.+?)-(\d+)$/);
+      const baseName = match ? match[1] : raw;
+      const count = match ? parseInt(match[2]) : 1;
+      const name = baseName.charAt(0).toUpperCase() + baseName.slice(1);
       if (!stats[name]) stats[name] = { hikes: 0, points: 0, distance: 0 };
-      stats[name].hikes++;
-      stats[name].distance += h.distance || 0;
-      stats[name].points += (h.distance || 0) * (h.difficulty || 0);
+      stats[name].hikes += count;
+      stats[name].distance += (h.distance || 0) * count;
+      stats[name].points += (h.distance || 0) * (h.difficulty || 0) * count;
     });
   });
 
@@ -745,6 +784,8 @@ function handleUpload(e) {
       data.forEach(addExistingHike);
       renderHikeList();
       updateStats();
+      updateVisibleRoutes();
+      updateTooltipVisibility();
     } catch (err) {
       console.error('Invalid JSON', err);
       alert('Failed to load JSON file. Please check the file format.');
@@ -798,6 +839,7 @@ function handleGpxFile(e) {
         weight: 4,
         opacity: 0.8
       }).addTo(drawnItems);
+      layer._onMap = true;
 
       pendingLayer = layer;
       pendingLayer.routeCoords = simplifiedCoords;
@@ -829,6 +871,39 @@ function handleGpxFile(e) {
   reader.readAsText(file);
 }
 
+// ── Viewport-based route rendering ───────────────────────
+function updateVisibleRoutes() {
+  if (!map || !drawnItems) return;
+  const mapBounds = map.getBounds();
+  hikes.forEach(hike => {
+    if (!hike.layer) return;
+    const layerBounds = hike.layer.getBounds();
+    const shouldShow = mapBounds.intersects(layerBounds);
+    if (shouldShow && !hike.layer._onMap) {
+      drawnItems.addLayer(hike.layer);
+      hike.layer._onMap = true;
+    } else if (!shouldShow && hike.layer._onMap) {
+      drawnItems.removeLayer(hike.layer);
+      hike.layer._onMap = false;
+    }
+  });
+}
+
+// ── Zoom-based tooltip visibility ────────────────────────
+function updateTooltipVisibility() {
+  if (!map) return;
+  const zoom = map.getZoom();
+  const show = zoom >= 11;
+  hikes.forEach(hike => {
+    if (!hike.layer) return;
+    if (show && hike.layer._onMap) {
+      hike.layer.openTooltip();
+    } else {
+      hike.layer.closeTooltip();
+    }
+  });
+}
+
 // ── Add existing hike from data ──────────────────────────
 function addExistingHike(h) {
   if (!h.route || !h.route.coordinates) {
@@ -836,14 +911,15 @@ function addExistingHike(h) {
     return;
   }
 
-  // Create polyline from route coordinates
+  // Create polyline from route coordinates (don't add to map yet — viewport culling handles it)
   const coords = h.route.coordinates;
   const latlngs = coords.map(c => [c[1], c[0]]);
   const layer = L.polyline(latlngs, {
     color: '#2d6a4f',
     weight: 4,
     opacity: 0.8
-  }).addTo(drawnItems);
+  });
+  layer._onMap = false;
 
   // Store route coords for editing
   layer.routeCoords = coords;
