@@ -53,25 +53,56 @@
       </button>
     </nav>
 
-    <!-- Tab content panels -->
-    <div class="tab-panels">
-      <!-- Hikes tab -->
-      <div class="tab-panel active" id="tab-hikes">
-        <div class="sort-container">
-          <label for="sort-select"><i class="fas fa-sort"></i> Sort by</label>
-          <select id="sort-select">
-            <option value="dateDesc">Date (Newest First)</option>
-            <option value="dateAsc">Date (Oldest First)</option>
-            <option value="distanceDesc">Distance (Longest)</option>
-            <option value="distanceAsc">Distance (Shortest)</option>
-            <option value="difficultyDesc">Difficulty (Hardest)</option>
-            <option value="difficultyAsc">Difficulty (Easiest)</option>
-            <option value="nameAsc">Name (A-Z)</option>
-            <option value="nameDesc">Name (Z-A)</option>
-          </select>
+    <!-- Content area: tab panels + detail panel overlay -->
+    <div class="content-area">
+      <!-- Tab content panels -->
+      <div class="tab-panels">
+        <!-- Hikes tab -->
+        <div class="tab-panel active" id="tab-hikes">
+          <div class="sort-container">
+            <label for="sort-select"><i class="fas fa-sort"></i> Sort by</label>
+            <select id="sort-select">
+              <option value="dateDesc">Date (Newest First)</option>
+              <option value="dateAsc">Date (Oldest First)</option>
+              <option value="distanceDesc">Distance (Longest)</option>
+              <option value="distanceAsc">Distance (Shortest)</option>
+              <option value="difficultyDesc">Difficulty (Hardest)</option>
+              <option value="difficultyAsc">Difficulty (Easiest)</option>
+              <option value="nameAsc">Name (A-Z)</option>
+              <option value="nameDesc">Name (Z-A)</option>
+            </select>
+          </div>
+
+          <div id="hike-list-container">
+            <ul id="hike-list"></ul>
+            <div id="empty-state" class="empty-state">
+              <i class="fas fa-compass"></i>
+              <p>No hikes yet!</p>
+              <p class="hint">Draw a route on the map or import a GPX file to get started.</p>
+            </div>
+          </div>
         </div>
 
-        <div id="hike-form" class="hike-form hidden">
+        <!-- Leaderboard tab -->
+        <div class="tab-panel" id="tab-leaderboard">
+          <div class="leaderboard-container">
+            <ol id="leaderboard-list"></ol>
+            <div id="leaderboard-empty" class="empty-state">
+              <i class="fas fa-trophy"></i>
+              <p>No hikers yet</p>
+              <p class="hint">Add hikers to your hikes to see the leaderboard.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Detail panel: slides over tab content -->
+      <div id="detail-panel" class="detail-panel hidden">
+        <div class="detail-header">
+          <button id="detail-back"><i class="fas fa-arrow-left"></i> Back</button>
+          <button id="delete-hike" class="btn btn-danger hidden"><i class="fas fa-trash"></i> Delete</button>
+        </div>
+        <div id="hike-form" class="hike-form">
           <h3><i class="fas fa-hiking"></i> Hike Details</h3>
 
           <div class="form-group">
@@ -134,30 +165,6 @@
             <button id="cancel-hike" class="btn btn-secondary">
               <i class="fas fa-times"></i> Cancel
             </button>
-            <button id="delete-hike" class="btn btn-danger hidden">
-              <i class="fas fa-trash"></i> Delete
-            </button>
-          </div>
-        </div>
-
-        <div id="hike-list-container">
-          <ul id="hike-list"></ul>
-          <div id="empty-state" class="empty-state">
-            <i class="fas fa-compass"></i>
-            <p>No hikes yet!</p>
-            <p class="hint">Draw a route on the map or import a GPX file to get started.</p>
-          </div>
-        </div>
-      </div>
-
-      <!-- Leaderboard tab -->
-      <div class="tab-panel" id="tab-leaderboard">
-        <div class="leaderboard-container">
-          <ol id="leaderboard-list"></ol>
-          <div id="leaderboard-empty" class="empty-state">
-            <i class="fas fa-trophy"></i>
-            <p>No hikers yet</p>
-            <p class="hint">Add hikers to your hikes to see the leaderboard.</p>
           </div>
         </div>
       </div>

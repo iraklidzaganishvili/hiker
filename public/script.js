@@ -15,6 +15,7 @@ const RADIUS_TRIES_METERS = [10, 14, 20, 28, 36];
 // ── Auth State ─────────────────────────────────────────
 let writeMode = false;
 let authPassword = null;
+let filterHiker = null; // leaderboard filter: show only this hiker's routes
 
 // ── Utilities ────────────────────────────────────────────
 function sleep(ms) {
@@ -57,6 +58,26 @@ function showLoading() {
 
 function hideLoading() {
   document.getElementById('loading-overlay').classList.add('hidden');
+}
+
+// ── Detail Panel ────────────────────────────────────────
+function showDetailPanel() {
+  const panel = document.getElementById('detail-panel');
+  panel.classList.remove('hidden');
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      panel.classList.add('open');
+    });
+  });
+}
+
+function hideDetailPanel() {
+  const panel = document.getElementById('detail-panel');
+  panel.classList.remove('open');
+  panel.addEventListener('transitionend', function handler() {
+    panel.classList.add('hidden');
+    panel.removeEventListener('transitionend', handler);
+  });
 }
 
 // ── API helpers ────────────────────────────────────────
@@ -234,6 +255,11 @@ window.onload = async () => {
       document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
       btn.classList.add('active');
       document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+      // Clear hiker filter when switching away from leaderboard
+      if (btn.dataset.tab !== 'leaderboard' && filterHiker) {
+        filterHiker = null;
+        updateVisibleRoutes();
+      }
     });
   });
 
@@ -378,8 +404,17 @@ window.onload = async () => {
     }
     clearActiveHikeSelection();
     pendingLayer = pendingEditHike = null;
-    form.classList.add('hidden');
-    deleteBtn.classList.add('hidden');
+    hideDetailPanel();
+  });
+
+  // ── Back button (same as cancel) ──────────────────────
+  document.getElementById('detail-back').addEventListener('click', () => {
+    if (pendingLayer && !pendingEditHike) {
+      drawnItems.removeLayer(pendingLayer);
+    }
+    clearActiveHikeSelection();
+    pendingLayer = pendingEditHike = null;
+    hideDetailPanel();
   });
 
   // ── Save hike ──────────────────────────────────────────
@@ -440,8 +475,7 @@ window.onload = async () => {
 
     clearActiveHikeSelection();
     pendingLayer = pendingEditHike = null;
-    form.classList.add('hidden');
-    deleteBtn.classList.add('hidden');
+    hideDetailPanel();
     renderHikeList();
     updateStats();
     await apiSaveHikes();
@@ -490,8 +524,8 @@ window.onload = async () => {
     photosInput.value = '';
     mediaInput.value = '';
 
-    form.classList.remove('hidden');
     deleteBtn.classList.add('hidden');
+    showDetailPanel();
   });
 };
 
@@ -546,9 +580,9 @@ function selectHike(hike) {
     pendingEditHike = hike;
     pendingLayer = hike.layer;
 
-    // Show form
-    form.classList.remove('hidden');
+    // Show detail panel with delete button visible
     deleteBtn.classList.remove('hidden');
+    showDetailPanel();
 
     // Populate form
     nameInput.value = hike.name;
@@ -602,8 +636,8 @@ function renderLeaderboard() {
     const hikerList = h.hikers || [];
     hikerList.forEach(raw => {
       // Support multiplier: "Irakli-3" counts as 3 hikes
-      const match = raw.match(/^(.+?)-(\d+)$/);
-      const baseName = match ? match[1] : raw;
+      const match = raw.match(/^(.+?)\s*[-\s]\s*(\d+)$/);
+      const baseName = match ? match[1].trim() : raw;
       const count = match ? parseInt(match[2]) : 1;
       const name = baseName.charAt(0).toUpperCase() + baseName.slice(1);
       if (!stats[name]) stats[name] = { hikes: 0, points: 0, distance: 0 };
@@ -627,6 +661,8 @@ function renderLeaderboard() {
 
   sorted.forEach((hiker, i) => {
     const li = document.createElement('li');
+    li.classList.toggle('active', filterHiker && filterHiker.toLowerCase() === hiker.name.toLowerCase());
+    li.style.cursor = 'pointer';
     li.innerHTML = `
       <div class="lb-rank">${i + 1}</div>
       <div class="lb-info">
@@ -638,6 +674,15 @@ function renderLeaderboard() {
       </div>
       <div class="lb-points">${Math.round(hiker.points)} pts</div>
     `;
+    li.addEventListener('click', () => {
+      if (filterHiker && filterHiker.toLowerCase() === hiker.name.toLowerCase()) {
+        filterHiker = null; // toggle off
+      } else {
+        filterHiker = hiker.name;
+      }
+      updateVisibleRoutes();
+      renderLeaderboard(); // re-render to update active state
+    });
     list.appendChild(li);
   });
 }
@@ -761,8 +806,7 @@ function deleteCurrentHike() {
 
   clearActiveHikeSelection();
   pendingEditHike = pendingLayer = null;
-  form.classList.add('hidden');
-  deleteBtn.classList.add('hidden');
+  hideDetailPanel();
 
   renderHikeList();
   updateStats();
@@ -859,8 +903,8 @@ function handleGpxFile(e) {
       photosInput.value = '';
       mediaInput.value = '';
 
-      form.classList.remove('hidden');
       deleteBtn.classList.add('hidden');
+      showDetailPanel();
     } catch (err) {
       console.error(err);
       alert('Failed to read GPX file.');
@@ -878,7 +922,12 @@ function updateVisibleRoutes() {
   hikes.forEach(hike => {
     if (!hike.layer) return;
     const layerBounds = hike.layer.getBounds();
-    const shouldShow = mapBounds.intersects(layerBounds);
+    const inViewport = mapBounds.intersects(layerBounds);
+    const passesFilter = !filterHiker || (hike.hikers || []).some(h => {
+      const name = h.replace(/\s*[-\s]\s*\d+$/, '').trim();
+      return name.toLowerCase() === filterHiker.toLowerCase();
+    });
+    const shouldShow = inViewport && passesFilter;
     if (shouldShow && !hike.layer._onMap) {
       drawnItems.addLayer(hike.layer);
       hike.layer._onMap = true;
