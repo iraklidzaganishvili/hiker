@@ -255,13 +255,12 @@ window.onload = async () => {
       document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
       btn.classList.add('active');
       document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
-      // Clear hiker filter when switching away from leaderboard
-      if (btn.dataset.tab !== 'leaderboard' && filterHiker) {
-        filterHiker = null;
-        updateVisibleRoutes();
-      }
     });
   });
+
+  // ── Leaderboard filter banner: clear button ──────────
+  const filterClearBtn = document.getElementById('filter-clear');
+  if (filterClearBtn) filterClearBtn.addEventListener('click', () => setFilterHiker(null));
 
   // ── Mobile bottom sheet ──────────────────────────────
   initBottomSheet();
@@ -675,16 +674,34 @@ function renderLeaderboard() {
       <div class="lb-points">${Math.round(hiker.points)} pts</div>
     `;
     li.addEventListener('click', () => {
-      if (filterHiker && filterHiker.toLowerCase() === hiker.name.toLowerCase()) {
-        filterHiker = null; // toggle off
-      } else {
-        filterHiker = hiker.name;
-      }
-      updateVisibleRoutes();
-      renderLeaderboard(); // re-render to update active state
+      // Toggle: tapping the active hiker clears the filter
+      const active = filterHiker && filterHiker.toLowerCase() === hiker.name.toLowerCase();
+      setFilterHiker(active ? null : hiker.name);
     });
     list.appendChild(li);
   });
+}
+
+// Single entry point for changing the leaderboard filter — keeps map, list,
+// leaderboard highlight, and the filter banner all in sync.
+function setFilterHiker(name) {
+  filterHiker = name;
+  updateVisibleRoutes();
+  renderHikeList();
+  renderLeaderboard();
+  updateFilterBanner();
+}
+
+function updateFilterBanner() {
+  const banner = document.getElementById('filter-banner');
+  if (!banner) return;
+  if (filterHiker) {
+    const nameEl = document.getElementById('filter-banner-name');
+    if (nameEl) nameEl.textContent = filterHiker;
+    banner.classList.remove('hidden');
+  } else {
+    banner.classList.add('hidden');
+  }
 }
 
 // ── Render hike list ─────────────────────────────────────
@@ -692,7 +709,7 @@ function renderHikeList() {
   const list = document.getElementById('hike-list');
   list.innerHTML = '';
 
-  const sorted = [...hikes];
+  const sorted = hikes.filter(hikeMatchesFilter);
   const mode = sortSelect.value;
 
   sorted.sort((a, b) => {
@@ -732,8 +749,8 @@ function renderHikeList() {
     list.appendChild(li);
   });
 
-  // Update empty state visibility
-  if (hikes.length === 0) {
+  // Update empty state visibility (reflects the active filter, not just total count)
+  if (sorted.length === 0) {
     emptyState.classList.remove('hidden');
   } else {
     emptyState.classList.add('hidden');
@@ -916,6 +933,15 @@ function handleGpxFile(e) {
 }
 
 // ── Viewport-based route rendering ───────────────────────
+// True if a hike includes the currently-selected leaderboard hiker (or no filter is active)
+function hikeMatchesFilter(hike) {
+  if (!filterHiker) return true;
+  return (hike.hikers || []).some(h => {
+    const name = h.replace(/\s*[-\s]\s*\d+$/, '').trim();
+    return name.toLowerCase() === filterHiker.toLowerCase();
+  });
+}
+
 function updateVisibleRoutes() {
   if (!map || !drawnItems) return;
   const mapBounds = map.getBounds();
@@ -923,10 +949,7 @@ function updateVisibleRoutes() {
     if (!hike.layer) return;
     const layerBounds = hike.layer.getBounds();
     const inViewport = mapBounds.intersects(layerBounds);
-    const passesFilter = !filterHiker || (hike.hikers || []).some(h => {
-      const name = h.replace(/\s*[-\s]\s*\d+$/, '').trim();
-      return name.toLowerCase() === filterHiker.toLowerCase();
-    });
+    const passesFilter = hikeMatchesFilter(hike);
     const shouldShow = inViewport && passesFilter;
     if (shouldShow && !hike.layer._onMap) {
       drawnItems.addLayer(hike.layer);

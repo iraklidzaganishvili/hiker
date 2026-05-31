@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"/>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
-  <link rel="stylesheet" href="style.css?v=5"/>
+  <link rel="stylesheet" href="style.css?v=6"/>
 </head>
 <body>
   <!-- Auth modal (hidden by default) -->
@@ -59,6 +59,10 @@
       <div class="tab-panels">
         <!-- Hikes tab -->
         <div class="tab-panel active" id="tab-hikes">
+          <div id="filter-banner" class="filter-banner hidden">
+            <span><i class="fas fa-filter"></i> Showing <strong id="filter-banner-name"></strong>'s hikes</span>
+            <button id="filter-clear"><i class="fas fa-times"></i> Clear</button>
+          </div>
           <div class="sort-container">
             <label for="sort-select"><i class="fas fa-sort"></i> Sort by</label>
             <select id="sort-select">
@@ -198,6 +202,6 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
   <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
-  <script src="script.js"></script>
+  <script src="script.js?v=6"></script>
 </body>
 </html>
