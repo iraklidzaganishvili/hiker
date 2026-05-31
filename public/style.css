@@ -1005,19 +1005,25 @@ body {
     min-height: 0;
   }
 
-  /* Tab panels are the sole scroll container on mobile */
+  /* Outer panel: bounded, no scroll — inner containers scroll */
   .tab-panels {
     height: 100%;
+    overflow: hidden;
+  }
+
+  .tab-panel.active {
+    height: 100%;
+    min-height: 0;
+  }
+
+  #hike-list-container,
+  .leaderboard-container {
+    flex: 1;
+    min-height: 0;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
     touch-action: pan-y;
-  }
-
-  /* Disable nested scrolls — let .tab-panels scroll the whole tab */
-  #hike-list-container,
-  .leaderboard-container {
-    flex: none;
-    overflow: visible;
+    overscroll-behavior: contain;
   }
 
   /* Detail panel on mobile */
