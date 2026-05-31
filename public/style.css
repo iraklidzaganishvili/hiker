@@ -1009,14 +1009,19 @@ body {
     flex-direction: column;
   }
 
-  /* Outer panel: bounded, no scroll — inner containers scroll */
+  /* Flex chain must continue all the way to the scroll container:
+     content-area (flex col) → tab-panels (flex item + flex col)
+     → tab-panel.active (flex item + flex col) → hike-list-container (flex item, scrolls). */
   .tab-panels {
-    height: 100%;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
     overflow: hidden;
   }
 
   .tab-panel.active {
-    height: 100%;
+    flex: 1;
     min-height: 0;
   }
 
