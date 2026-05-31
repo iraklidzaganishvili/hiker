@@ -999,10 +999,14 @@ body {
     font-size: 0.85rem;
   }
 
-  /* Content area fills remaining space */
+  /* Content area fills remaining space — must be flex column so children's
+     height:100% resolves against its flex-derived height (display:block here
+     would leave height:auto, breaking the chain and the inner scroll). */
   .content-area {
     flex: 1;
     min-height: 0;
+    display: flex;
+    flex-direction: column;
   }
 
   /* Outer panel: bounded, no scroll — inner containers scroll */
